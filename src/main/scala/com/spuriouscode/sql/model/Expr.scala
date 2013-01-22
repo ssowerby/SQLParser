@@ -21,12 +21,17 @@ case class Literal( value: String ) extends Expr {
 trait Ref extends Expr
 trait ComplexExpr extends Expr
 
-case class ParsedColumnReference( prefix: Option[String], column: String ) extends Ref {
-  def buildSQL(builder: SqlBuilder) = prefix.map { _ + "." }.getOrElse("") + column
+case class ParsedColumnReference( source: Option[String], column: String ) extends Ref  {
+  def buildSQL(builder: SqlBuilder) = source.map { _ + "." }.getOrElse("") + column
 }
 
-case class ColumnReference( source: Source, column: String ) extends Ref {
-  def buildSQL(builder: SqlBuilder) = builder.build(source) + "." + column
+case class ColumnReference( source: Option[Source], column: String ) extends Ref  {
+  def buildSQL(builder: SqlBuilder) = source match {
+    case None =>
+      column
+    case Some(s) =>
+      builder.build(s) + "." + column
+  }
 }
 
 case class BinaryExpr( lhs: Expr, op: String, rhs: Expr ) extends ComplexExpr {
