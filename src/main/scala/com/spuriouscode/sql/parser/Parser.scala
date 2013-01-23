@@ -1,27 +1,14 @@
 package com.spuriouscode.sql.parser
 
-import util.parsing.combinator.{PackratParsers, JavaTokenParsers}
+import util.parsing.combinator.JavaTokenParsers
 import com.spuriouscode.sql.model._
-import com.spuriouscode.sql.SqlBuilder
-import util.parsing.combinator.syntactical.{StdTokenParsers, StandardTokenParsers}
-import com.spuriouscode.sql.model.BinaryExpr
-import com.spuriouscode.sql.model.ParsedColumnReference
-import com.spuriouscode.sql.model.Literal
-import com.spuriouscode.sql.model.Selector
-import scala.Some
-import com.spuriouscode.sql.model.RelativeConstraint
-import com.spuriouscode.sql.model.NotConstraint
-import com.spuriouscode.sql.model.Select
-import com.spuriouscode.sql.model.Table
-import com.spuriouscode.sql.model.ConstraintConjunction
-import com.spuriouscode.sql.model.ColumnReference
 
 
 class Parser extends JavaTokenParsers  {
 
   override val whiteSpace = """[ \t]+""".r
 
-  lazy val keyword = "select" | "from" | "order" | "group" | "by"
+  lazy val keyword = "select" | "from" | "order" | "group" | "by" | "where" | "having"
 
   override lazy val ident = not(keyword) ~> super.ident
   lazy val literalValue = (wholeNumber | floatingPointNumber | stringLiteral | ("true" | "false")) ^^ Literal.apply
@@ -51,21 +38,40 @@ class Parser extends JavaTokenParsers  {
                       opt("from" ~> rep1sep(source, ","))  ~
                       opt("where" ~> constraint) ^^ { case sels ~ froms ~ where =>
     val sources = froms.getOrElse(Nil).toSet
-    val sourcesByAlias = sources.filter{ _.alias.isDefined }.groupBy{ _.alias.get }
-    val resolvedSelectors = sels.map {
+    val sourcesByAlias = sources.filter{ _.alias.isDefined }.groupBy{ _.alias.get }.mapValues{ _.head }
+    val resolvedSelectors = sels.map(resolveSelector(sourcesByAlias))
+    val resolvedConstraint = where.map(resolveConstraint(sourcesByAlias))
 
-      case Selector(ParsedColumnReference(Some(sourceAlias), column), selectorAlias) =>
-        val source = sourcesByAlias.getOrElse(sourceAlias, sys.error("Unknown source alias " + sourceAlias)).head
-        Selector(ColumnReference(Some(source), column), selectorAlias)
+    Select(resolvedSelectors, sources, resolvedConstraint, Set.empty, None)
+  }
 
-      case Selector(ParsedColumnReference(None, column), selectorAlias) =>
-        Selector(ColumnReference(None, column), selectorAlias)
 
-      case s:Selector =>
-        s
-    }
+  private def resolveSelector( sourceByAlias: Map[String,Source] ) :  PartialFunction[Selector,Selector] = {
+    case Selector(ParsedColumnReference(Some(sourceAlias), column), selectorAlias) =>
+      val source = sourceByAlias.getOrElse(sourceAlias, sys.error("Unknown source alias " + sourceAlias))
+      Selector(ColumnReference(Some(source), column), selectorAlias)
 
-    Select(resolvedSelectors, sources, where, Set.empty, None)
+    case Selector(ParsedColumnReference(None, column), selectorAlias) =>
+      Selector(ColumnReference(None, column), selectorAlias)
+
+    case s:Selector =>
+      s
+  }
+
+
+  private def resolveConstraint( sourceByAlias: Map[String,Source] ) : PartialFunction[Constraint,Constraint] = {
+    case RelativeConstraint(ParsedColumnReference(Some(sourceAlias), column), op, rhs) =>
+      val source = sourceByAlias.getOrElse(sourceAlias, sys.error("Unknown source alias " + sourceAlias))
+      RelativeConstraint(ColumnReference(Some(source), column), op, rhs)
+
+    case RelativeConstraint(ParsedColumnReference(None, column), op, rhs) =>
+      RelativeConstraint(ColumnReference(None, column), op, rhs)
+
+    case ConstraintConjunction(lhs, op, rhs) =>
+      ConstraintConjunction(resolveConstraint(sourceByAlias)(lhs), op, resolveConstraint(sourceByAlias)(rhs))
+
+    case c:Constraint =>
+      c
   }
 
 }
