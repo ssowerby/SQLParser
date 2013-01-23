@@ -47,12 +47,8 @@ class Parser extends JavaTokenParsers  {
 
 
   private def resolveSelector( sourceByAlias: Map[String,Source] ) :  PartialFunction[Selector,Selector] = {
-    case Selector(ParsedColumnReference(Some(sourceAlias), column), selectorAlias) =>
-      val source = sourceByAlias.getOrElse(sourceAlias, sys.error("Unknown source alias " + sourceAlias))
-      Selector(ColumnReference(Some(source), column), selectorAlias)
-
-    case Selector(ParsedColumnReference(None, column), selectorAlias) =>
-      Selector(ColumnReference(None, column), selectorAlias)
+    case Selector(ref:ParsedColumnReference, selectorAlias) =>
+      Selector(resolveReference(sourceByAlias, ref), selectorAlias)
 
     case s:Selector =>
       s
@@ -60,18 +56,22 @@ class Parser extends JavaTokenParsers  {
 
 
   private def resolveConstraint( sourceByAlias: Map[String,Source] ) : PartialFunction[Constraint,Constraint] = {
-    case RelativeConstraint(ParsedColumnReference(Some(sourceAlias), column), op, rhs) =>
-      val source = sourceByAlias.getOrElse(sourceAlias, sys.error("Unknown source alias " + sourceAlias))
-      RelativeConstraint(ColumnReference(Some(source), column), op, rhs)
-
-    case RelativeConstraint(ParsedColumnReference(None, column), op, rhs) =>
-      RelativeConstraint(ColumnReference(None, column), op, rhs)
+    case RelativeConstraint(ref:ParsedColumnReference, op, rhs) =>
+        RelativeConstraint(resolveReference(sourceByAlias, ref), op, rhs)
 
     case ConstraintConjunction(lhs, op, rhs) =>
       ConstraintConjunction(resolveConstraint(sourceByAlias)(lhs), op, resolveConstraint(sourceByAlias)(rhs))
 
     case c:Constraint =>
       c
+  }
+
+
+  private def resolveReference( sourceByAlias: Map[String,Source], ref: ParsedColumnReference ) : ColumnReference = {
+    val source = ref.source.map { s =>
+        sourceByAlias.getOrElse(s, sys.error("Unknown source alias " + s))
+    }
+    ColumnReference(source, ref.column)
   }
 
 }

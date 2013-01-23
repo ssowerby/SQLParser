@@ -38,4 +38,14 @@ class TestSelectParsing extends FunSuite with ShouldMatchers with ParsingInTests
     sel should be (Select(List(Selector(ColumnReference(None, "x"), None)), Set(Table("y", None)), Some(RelativeConstraint(ColumnReference(None, "z"), ">", Literal("0"))), Set.empty, None))
   }
 
+  test ("select statement with a complex constraint") {
+    val sel = parseSelect("select x from y where x < 0 and y > 2 and z = 3")
+    val xc = RelativeConstraint(ColumnReference(None, "x"), "<", Literal("0"))
+    val yc = RelativeConstraint(ColumnReference(None, "y"), ">", Literal("2"))
+    val zc = RelativeConstraint(ColumnReference(None, "z"), "=", Literal("3"))
+
+    sel should be (Select(List(Selector(ColumnReference(None, "x"), None)), Set(Table("y", None)),
+      Some(ConstraintConjunction(ConstraintConjunction(xc, "and", yc), "and", zc)),
+      Set.empty, None))
+  }
 }
