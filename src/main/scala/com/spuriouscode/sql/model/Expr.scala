@@ -34,6 +34,8 @@ case class ColumnReference( source: Option[Source], column: String ) extends Ref
   }
 }
 
-case class BinaryExpr( lhs: Expr, op: String, rhs: Expr ) extends ComplexExpr {
+case class BinaryExpr( lhs: Expr, op: String, rhs: Expr ) extends ComplexExpr with Resolvable[Expr] {
   def buildSQL(builder: SqlBuilder) = wrap(builder, lhs) + " " + op + " " + wrap(builder, rhs)
+
+  override def resolve(pf: PartialFunction[Expr, Expr]) = BinaryExpr(pf(lhs), op, pf(rhs))
 }
