@@ -22,8 +22,9 @@ class Parser extends JavaTokenParsers  {
   lazy val alias = ("as".? ~ (stringLiteral|ident) ) ^^ { case (as ~ id ) => id }
   lazy val aliasedSelector = expr ~ alias ^^ { case (e ~ a) => Selector(e, Some(a)) }
   lazy val selector = aliasedSelector | unaliasedSelector
-  lazy val unaliasedSource = ident
-  lazy val source: Parser[Source] = unaliasedSource ~ alias.? ^^ { case s ~ a => Table(s, a) }
+  lazy val table = ident ~ alias.? ^^ { case s ~ a => Table(s, a) }
+  lazy val inlineView = ("(" ~> select <~ ")") ~ alias ^^ { case (sel~a) => InlineView(sel, a) }
+  lazy val source: Parser[Source] = table | inlineView
   lazy val relop = "<>|<=|>=|<|>|=".r
   lazy val setConstraint: Parser[Constraint] = expr ~ ("in"|"not in") ~ ("(" ~> rep1sep(expr, ",") <~ ")") ^^ {  case lhs ~ op ~ values => SetConstraint(lhs, op, values.toSet) }
   lazy val valueConstraint: Parser[Constraint] = expr ~ relop ~ expr ^^ { case lhs ~ op ~ rhs => RelativeConstraint(lhs, op, rhs) }

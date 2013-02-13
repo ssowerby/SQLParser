@@ -71,4 +71,11 @@ class TestSelectParsing extends FunSuite with ShouldMatchers with ParsingInTests
       Set.empty, None))
   }
 
+  test ("select statement with inline view") {
+    val sel = parseSelect("select z.x from (select a x from y) z")
+    val t = Table("y", None)
+    val v = InlineView(Select(List(Selector(ColumnReference(None, "a"), Some("x"))), Set(t), None, Set.empty, None), "z")
+    sel should be (Select(List(Selector(ColumnReference(Some(v), "x"), None)), Set(v), None, Set.empty, None))
+  }
+
 }
