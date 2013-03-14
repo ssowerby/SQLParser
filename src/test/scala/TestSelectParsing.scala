@@ -78,4 +78,28 @@ class TestSelectParsing extends FunSuite with ShouldMatchers with ParsingInTests
     sel should be (Select(List(Selector(ColumnReference(Some(v), "x"), None)), Set(v), None, Set.empty, None))
   }
 
+  test ("select with left outer join") {
+    val sel = parseSelect("select x, z.id from y left outer join z on z.id = y.id")
+    val y = Table("y", None)
+    val z = Table("z", None)
+    sel should be (Select(List(Selector(ColumnReference(None, "x"), None), Selector(ColumnReference(Some(z), "id"), None)),
+      Set(JoinedSource(y, List(Join(Some("left outer"), z, Some(RelativeConstraint(ColumnReference(Some(z), "id"), "=", ColumnReference(Some(y), "id"))))))), None, Set.empty, None))
+  }
+
+  test ("select with right outer join") {
+    val sel = parseSelect("select x, z.id from y right outer join z on z.id = y.id")
+    val y = Table("y", None)
+    val z = Table("z", None)
+    sel should be (Select(List(Selector(ColumnReference(None, "x"), None), Selector(ColumnReference(Some(z), "id"), None)),
+      Set(JoinedSource(y, List(Join(Some("right outer"), z, Some(RelativeConstraint(ColumnReference(Some(z), "id"), "=", ColumnReference(Some(y), "id"))))))), None, Set.empty, None))
+  }
+
+  test ("select with full outer join") {
+    val sel = parseSelect("select x, z.id from y full outer join z on z.id = y.id")
+    val y = Table("y", None)
+    val z = Table("z", None)
+    sel should be (Select(List(Selector(ColumnReference(None, "x"), None), Selector(ColumnReference(Some(z), "id"), None)),
+      Set(JoinedSource(y, List(Join(Some("full outer"), z, Some(RelativeConstraint(ColumnReference(Some(z), "id"), "=", ColumnReference(Some(y), "id"))))))), None, Set.empty, None))
+  }
+
 }

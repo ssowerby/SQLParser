@@ -8,7 +8,7 @@ class Parser extends JavaTokenParsers  {
 
   override val whiteSpace = """[ \t]+""".r
 
-  lazy val keyword = "select" | "from" | "order" | "group" | "by" | "where" | "having"
+  lazy val keyword = "select" | "from" | "order" | "group" | "by" | "where" | "having" | "left" | "right" | "outer" | "full" | "cross" | "inner" | "on"
 
   override lazy val ident = not(keyword) ~> super.ident
   lazy val literalValue = (wholeNumber | floatingPointNumber | stringLiteral | ("true" | "false")) ^^ Literal.apply
@@ -25,6 +25,13 @@ class Parser extends JavaTokenParsers  {
   lazy val table = ident ~ alias.? ^^ { case s ~ a => Table(s, a) }
   lazy val inlineView = ("(" ~> select <~ ")") ~ alias ^^ { case (sel~a) => InlineView(sel, a) }
   lazy val source: Parser[Source] = table | inlineView
+  lazy val directedOuterJoin = ("left"|"right") <~ opt("outer") ^^ { _ + " outer" }
+  lazy val fullOuterJoin = ("full" ~ "outer") ^^^ {
+    "full outer"
+  }
+  lazy val joinType = fullOuterJoin | directedOuterJoin | "inner" | "cross" | "outer"
+  lazy val join = opt(joinType) ~ "join" ~ source ~ opt("on" ~> constraint) ^^ { case jt ~ _ ~ s ~ c => Join(jt, s, c) }
+  lazy val joinedSource = source ~ rep(join) ^^ { case source ~ joins => JoinedSource(source, joins) }
   lazy val relop = "<>|<=|>=|<|>|=".r
   lazy val setConstraint: Parser[Constraint] = expr ~ ("in"|"not in") ~ ("(" ~> rep1sep(expr, ",") <~ ")") ^^ {  case lhs ~ op ~ values => SetConstraint(lhs, op, values.toSet) }
   lazy val valueConstraint: Parser[Constraint] = expr ~ relop ~ expr ^^ { case lhs ~ op ~ rhs => RelativeConstraint(lhs, op, rhs) }
@@ -37,28 +44,43 @@ class Parser extends JavaTokenParsers  {
     clause ~ rep(conjunction ~ clause) ^^ { arg => arg._2.foldLeft(arg._1){ case (l,op~r) => builder(l,op,r) } }
 
   lazy val select: Parser[Select] = "select " ~> repsep(selector, ",") ~
-                                    opt("from" ~> rep1sep(source, ","))  ~
+                                    opt("from" ~> rep1sep(joinedSource, ","))  ~
                                     opt("where" ~> constraint) ^^ { case sels ~ froms ~ where =>
     val sources = froms.getOrElse(Nil).toSet
-    val sourceByAlias = sources.filter{ _.alias.isDefined }.groupBy{ _.alias.get }.mapValues{ _.head }
-    val resolvedSelectors = sels.map{ sel => Selector(resolve[Expr](sourceByAlias)(sel.expr), sel.alias) }
-    val resolvedConstraint = where.map{ c => resolve[Constraint](sourceByAlias)(c) }
+    val sourceByAlias = extractAliases(sources.map{_.source}) ++ extractAliases(sources.flatMap{_.joins.map{_.source}})
+    val resolvedSources = sources.map(resolve(sourceByAlias))
+    val resolvedSelectors = sels.map(resolve(sourceByAlias))
+    val resolvedConstraint = where.map(resolve(sourceByAlias))
 
-    Select(resolvedSelectors, sources, resolvedConstraint, Set.empty, None)
+    Select(resolvedSelectors, resolvedSources, resolvedConstraint, Set.empty, None)
   }
 
-  private def resolve[T<:Expr]( sourceByAlias: Map[String,Source] ) : PartialFunction[T,T] = {
-    case ref:ParsedColumnReference =>
-      val source = ref.source.map { s =>
-          sourceByAlias.getOrElse(s, sys.error("Unknown source alias " + s))
+  private def extractAliases( sources: Iterable[Source] ) : Map[String,Source] =
+    sources.groupBy{ _.alias }.mapValues{ _.head }
+
+
+  private def resolve[T]( sourceByAlias: Map[String,Source] )( t: T ) : T = {
+    val resolver = new Resolver {
+
+      def apply[E](e: E) : E = {
+        val resolved = e match {
+
+          case ref:ParsedColumnReference =>
+            val source = ref.source.map { s =>
+              sourceByAlias.getOrElse(s, sys.error("Unknown source alias " + s))
+            }
+            ColumnReference(source, ref.column).asInstanceOf[T]
+
+          case r: Resolvable =>
+            r.resolve(this)
+
+          case e =>
+            e
+        }
+        resolved.asInstanceOf[E]
       }
-      ColumnReference(source, ref.column).asInstanceOf[T]
+    }
 
-    case r: Resolvable[T] =>
-      r.resolve(resolve[T](sourceByAlias))
-
-    case e =>
-      e
+    resolver(t)
   }
-
 }

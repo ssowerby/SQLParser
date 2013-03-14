@@ -38,4 +38,52 @@ class TestSelectEquality extends FunSuite with ShouldMatchers with ParsingInTest
     s1 should be(s2)
   }
 
+  test("order of where clause equals constraint does not matter") {
+    val s1 = parseSelect("select x from y where a=b")
+    val s2 = parseSelect("select x from y where b=a")
+
+    s1 should be(s2)
+    s1.hashCode should be(s2.hashCode)
+  }
+
+  test("order of join clause equals constraint does not matter") {
+    val s1 = parseSelect("select x from y left outer join z on a=b")
+    val s2 = parseSelect("select x from y left outer join z on b=a")
+
+    s1 should be(s2)
+    s1.hashCode should be(s2.hashCode)
+  }
+
+  test("order of anded where clauses does not matter") {
+    val s1 = parseSelect("select x from y where a=b and c=d")
+    val s2 = parseSelect("select x from y where c=d and a=b")
+
+    s1 should be(s2)
+    s1.hashCode should be(s2.hashCode)
+  }
+
+  test("order of anded clauses in join does not matter") {
+    val s1 = parseSelect("select x from y left outer join z on a=b and c=d")
+    val s2 = parseSelect("select x from y left outer join z on c=d and a=b")
+
+    s1 should be(s2)
+    s1.hashCode should be(s2.hashCode)
+  }
+
+  test("order of anded where clauses and order of equals operands does not matter") {
+     val s1 = parseSelect("select x from y where a=b and c=d")
+     val s2 = parseSelect("select x from y where d=c and b=a")
+
+     s1 should be(s2)
+     s1.hashCode should be(s2.hashCode)
+   }
+
+  test("order of anded clauses in join along with operands in equals constraint does not matter") {
+    val s1 = parseSelect("select x from y left outer join z on a=b and c=d")
+    val s2 = parseSelect("select x from y left outer join z on d=c and b=a")
+
+    s1 should be(s2)
+    s1.hashCode should be(s2.hashCode)
+  }
+
 }

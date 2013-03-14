@@ -13,6 +13,8 @@ class SqlBuilder {
   def list( nodes: Seq[Node], sep: String )( code: String => String ) : String =
     if (nodes.isEmpty) "" else code(nodes.map(build).mkString(sep))
 
+  def binaryExpr( lhs: Node, op: String, rhs: Node ) : String =
+    "(" + build(lhs) + " " + op + " " + build(rhs) + ")"
 }
 
 

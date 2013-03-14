@@ -5,7 +5,7 @@ import com.spuriouscode.sql.SqlBuilder._
 
 case class Select (
   selectors: List[Selector],
-  sources: Set[Source],
+  sources: Set[JoinedSource],
   where: Option[Constraint],
   groupBy: Set[Expr],
   having: Option[Constraint]

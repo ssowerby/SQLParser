@@ -3,12 +3,17 @@ package com.spuriouscode.sql.model
 import com.spuriouscode.sql.SqlBuilder
 
 trait Source extends Node {
-  def alias: Option[String]
+  def alias: String
 }
 
-case class Table( name: String, alias: Option[String] ) extends Source {
+case class Table( name: String, _alias: Option[String] ) extends Source {
+
+  private def autoAlias:String =name.substring(1 + name.lastIndexOf('.'))
+
+  def alias = _alias.getOrElse(autoAlias)
+
   def buildSQL(builder: SqlBuilder) =
-    name + alias.map { " as " + _ }.getOrElse("")
+    name + _alias.map { " as " + _ }.getOrElse("")
 
   override def hashCode() = name.hashCode()
 
@@ -24,8 +29,7 @@ case class Table( name: String, alias: Option[String] ) extends Source {
 }
 
 
-case class InlineView( select: Select, _alias: String ) extends Source {
-  val alias = Some(_alias)
+case class InlineView( select: Select, alias: String ) extends Source {
   def buildSQL(builder: SqlBuilder) = builder.build(select) + " as " + alias
 
   override def hashCode() = select.hashCode()
