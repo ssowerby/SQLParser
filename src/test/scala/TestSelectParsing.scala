@@ -102,4 +102,15 @@ class TestSelectParsing extends FunSuite with ShouldMatchers with ParsingInTests
       Set(JoinedSource(y, List(Join(Some("full outer"), z, Some(RelativeConstraint(ColumnReference(Some(z), "id"), "=", ColumnReference(Some(y), "id"))))))), None, Set.empty, None))
   }
 
+  test ("select with multiple outer joins") {
+    val sel = parseSelect("select x, z.id from y left outer join z on z.id = y.id right outer join o on o.id=y.id")
+    val y = Table("y", None)
+    val z = Table("z", None)
+    val o = Table("o", None)
+    val zjoin = Join(Some("left outer"), z, Some(RelativeConstraint(ColumnReference(Some(z), "id"), "=", ColumnReference(Some(y), "id"))))
+    val ojoin = Join(Some("right outer"), o, Some(RelativeConstraint(ColumnReference(Some(o), "id"), "=", ColumnReference(Some(y), "id"))))
+    sel should be (Select(List(Selector(ColumnReference(None, "x"), None), Selector(ColumnReference(Some(z), "id"), None)),
+      Set(JoinedSource(y, List(zjoin, ojoin))), None, Set.empty, None))
+  }
+
 }
