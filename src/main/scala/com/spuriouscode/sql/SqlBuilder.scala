@@ -22,6 +22,4 @@ object SqlBuilder {
 
   def prefixWith( prefix:String )( str: String ) = prefix + str
 
-// test
-
 }
